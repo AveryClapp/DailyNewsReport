@@ -44,8 +44,10 @@ def send_email(type, news_content):
     email_list = df['emails'].values
     email['to'] = 'email_list'
     email['subject'] = f'Daily {type} Headlines'
-    email.set_content(news_content)
-
+    body = "Hello!\n\nHere's your personalized news update!\n\n"
+    body += news_content
+    body += "\nEnjoy your personalized news digest!"
+    email.set_content(body)
     try:
         with smtplib.SMTP(host='smtp.gmail.com', port=587) as smtp:
             smtp.ehlo()
