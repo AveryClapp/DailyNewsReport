@@ -1,58 +1,26 @@
-import requests
-import smtplib
-from email.message import EmailMessage
-from newsapi.newsapi_client import NewsApiClient
-from datetime import timedelta, datetime
-import os
-from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from api import router as api_router
 
-load_dotenv('./.env')
+app = FastAPI()
 
-def get_news(type):
-    key = os.getenv('APIKEY')
-    # Initialize the newsapi client
-    newsapi = NewsApiClient(api_key=key) 
+origins = [
+    "http://localhost.tiangolo.com",
+    "https://localhost.tiangolo.com",
+    "http://localhost",
+    "http://localhost:8080",
+]
 
-    # Get the current date and the date of yesterday for the news
-    today = datetime.now()
-    yesterday = today - timedelta(days=1)
-    from_date_str = yesterday.strftime('%Y-%m-%d')
-    to_date_str = today.strftime('%Y-%m-%d')
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # Get the top headlines from the Associated Press
-    news = newsapi.get_top_headlines(sources='associated-press')
-    if (type):
-        # Get the top business headlines instead
-        news = newsapi.get_top_headlines(category='business', country='us', language='en')
+app.include_router(api_router)
 
-    # Get the articles from the news
-    articles = news['articles']
-    news_content = ""
-    # Get Aggregated News Content and Return It
-    for article in articles:
-        news_content += f"{article['title']}\nBrief Summary: {article['description']}\n{article['url']}\n\n"
-    return news_content
-
-def send_email(type, news_content):
-    # Initialize the email message
-    email = EmailMessage()
-    email['from'] = 'Daily News Report'
-    email['to'] = 'aclapp1@jh.edu', 'rcoutur1@jh.edu'
-    email['subject'] = f'Daily {type} Headlines'
-    email.set_content(news_content)
-
-    try:
-        with smtplib.SMTP(host='smtp.gmail.com', port=587) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            smtp.login('avery.clapp@gmail.com', 'owcgoylsgucqkqpy')
-            smtp.send_message(email)
-    except Exception as e:
-        print(e)
-
-# Main Function Handling Logic of What to Send
-if __name__ == '__main__':
-    news = get_news(True)
-    send_email('Business', news)
-    news = get_news(False)
-    send_email('General', news)
+@app.get("/")
+async def main():
+    return {"Welcome to the Daily News API! Visit /docs to see the API documentation."}
