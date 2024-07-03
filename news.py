@@ -4,8 +4,10 @@ from email.message import EmailMessage
 from newsapi.newsapi_client import NewsApiClient
 from datetime import timedelta, datetime
 import os
+import pandas as pd
 from dotenv import load_dotenv
 
+# Load the environment variables
 load_dotenv('./.env')
 
 def get_news(type):
@@ -37,6 +39,8 @@ def send_email(type, news_content):
     # Initialize the email message
     email = EmailMessage()
     email['from'] = 'Daily News Report'
+    df = pd.read_csv('./Users/users.csv')
+    email_list = df['emails'].values
     email['to'] = 'aclapp1@jh.edu', 'rcoutur1@jh.edu'
     email['subject'] = f'Daily {type} Headlines'
     email.set_content(news_content)
