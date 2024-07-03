@@ -36,12 +36,13 @@ def get_news(type):
     return news_content
 
 def send_email(type, news_content):
+    email_key = os.getenv("EMAILKEY")
     # Initialize the email message
     email = EmailMessage()
     email['from'] = 'Daily News Report'
     df = pd.read_csv('./Users/users.csv')
     email_list = df['emails'].values
-    email['to'] = 'aclapp1@jh.edu', 'rcoutur1@jh.edu'
+    email['to'] = 'email_list'
     email['subject'] = f'Daily {type} Headlines'
     email.set_content(news_content)
 
@@ -49,7 +50,8 @@ def send_email(type, news_content):
         with smtplib.SMTP(host='smtp.gmail.com', port=587) as smtp:
             smtp.ehlo()
             smtp.starttls()
-            smtp.login('avery.clapp@gmail.com', 'owcgoylsgucqkqpy')
+            #Enter your own information here
+            smtp.login('avery.clapp@gmail.com', 'email_key')
             smtp.send_message(email)
     except Exception as e:
         print(e)
