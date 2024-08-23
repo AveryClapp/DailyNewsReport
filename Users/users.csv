@@ -1,4 +1,4 @@
-emails
-aclapp1@jh.edu
-rcoutur1@jh.edu
-avery.clapp@gmail.com
+email,general_news,business_news,finance_report,sports_news
+aclapp1@jh.edu,1,1,1,1
+rcoutur1@jh.edu,1,0,1,0
+avery.clapp@gmail.com,0,1,1,1
