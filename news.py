@@ -1,70 +1,62 @@
-import requests
-import smtplib
-from email.message import EmailMessage
-from newsapi.newsapi_client import NewsApiClient
-from datetime import timedelta, datetime
 import os
-import pandas as pd
+from datetime import datetime
+from newsapi.newsapi_client import NewsApiClient
 from dotenv import load_dotenv
+import db
+from email_utils import send_email
 
-# Load the environment variables
-load_dotenv('./.env')
+load_dotenv("./.env")
 
-def get_news(type):
-    key = os.getenv('APIKEY')
-    newsapi = NewsApiClient(api_key=key) 
-
-    today = datetime.now()
-    yesterday = today - timedelta(days=1)
-    from_date_str = yesterday.strftime('%Y-%m-%d')
-    to_date_str = today.strftime('%Y-%m-%d')
-
-    if type == 'General':
-        news = newsapi.get_top_headlines(sources='associated-press')
-    elif type == 'Business':
-        news = newsapi.get_top_headlines(category='business', country='us', language='en')
-    elif type == 'Sports':
-        news = newsapi.get_top_headlines(category='sports', country='us', language='en')
+def get_news(news_type: str) -> str:
+    newsapi = NewsApiClient(api_key=os.getenv("APIKEY"))
+    if news_type == "General":
+        articles = newsapi.get_top_headlines(sources="associated-press")["articles"]
+    elif news_type == "Business":
+        articles = newsapi.get_top_headlines(category="business", country="us")["articles"]
+    elif news_type == "Sports":
+        articles = newsapi.get_top_headlines(category="sports", country="us")["articles"]
     else:
-        raise ValueError("Invalid news type")
+        raise ValueError(f"Unknown news type: {news_type}")
 
-    articles = news['articles']
-    news_content = ""
-    for article in articles:
-        news_content += f"{article['title']}\nBrief Summary: {article['description']}\n{article['url']}\n\n"
-    return news_content
+    lines = []
+    for a in articles:
+        lines.append(f"{a['title']}\n{a['description']}\n{a['url']}\n")
+    return "\n".join(lines)
 
-def send_email(type, news_content):
-    email_key = os.getenv("EMAILKEY")
-    df = pd.read_csv('./Users/users.csv')
-    
-    for _, user in df.iterrows():
-        if (type == 'General' and user['general_news']) or \
-           (type == 'Business' and user['business_news']) or \
-           (type == 'Sports' and user['sports_news']):
-            email = EmailMessage()
-            email['from'] = 'Daily News Report'
-            email['to'] = user['email']
-            email['subject'] = f'Daily {type} Headlines'
-            body = f"Hello!\n\nHere's your personalized {type.lower()} news update!\n\n"
-            body += news_content
-            body += "\nEnjoy your personalized news digest!"
-            email.set_content(body)
-            
+def build_digest(user: dict, sections: dict) -> str | None:
+    parts = []
+    if user["general_news"] and "General" in sections:
+        parts.append("=== GENERAL NEWS ===\n" + sections["General"])
+    if user["business_news"] and "Business" in sections:
+        parts.append("=== BUSINESS NEWS ===\n" + sections["Business"])
+    if user["sports_news"] and "Sports" in sections:
+        parts.append("=== SPORTS NEWS ===\n" + sections["Sports"])
+    if not parts:
+        return None
+    date = datetime.now().strftime("%B %d, %Y")
+    header = f"Your Daily News Digest — {date}\n\n"
+    return header + "\n\n".join(parts) + "\n\nEnjoy your personalized news digest!"
+
+if __name__ == "__main__":
+    print("Fetching news...")
+    sections = {
+        "General": get_news("General"),
+        "Business": get_news("Business"),
+        "Sports": get_news("Sports"),
+    }
+    users = db.get_all_users()
+    sent = 0
+    for user in users:
+        body = build_digest(user, sections)
+        if body:
             try:
-                with smtplib.SMTP(host='smtp.gmail.com', port=587) as smtp:
-                    smtp.ehlo()
-                    smtp.starttls()
-                    smtp.login('avery.clapp@gmail.com', email_key)
-                    smtp.send_message(email)
-                print(f"Sent {type} news to {user['email']}")
+                send_email(
+                    to=user["email"],
+                    subject=f"Daily News Digest — {datetime.now().strftime('%B %d, %Y')}",
+                    body=body,
+                )
+                print(f"Sent digest to {user['email']}")
+                sent += 1
             except Exception as e:
-                print(f"Error sending email to {user['email']}: {e}")
-
-if __name__ == '__main__':
-    general_news = get_news('General')
-    send_email('General', general_news)
-    business_news = get_news('Business')
-    send_email('Business', business_news)
-    sports_news = get_news('Sports')
-    send_email('Sports', sports_news)
+                print(f"Error sending to {user['email']}: {e}")
+    print(f"Done. Sent {sent}/{len(users)} digests.")

@@ -1,19 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api import router as api_router
+import db
 
-app = FastAPI()
+db.init_db()
 
-origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
-    "http://localhost:8080",
-]
+app = FastAPI(title="Daily News Report API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["http://localhost:8080"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -22,5 +18,5 @@ app.add_middleware(
 app.include_router(api_router)
 
 @app.get("/")
-async def main():
-    return {"Welcome to the Daily News API! Visit /docs to see the API documentation."}
+async def root():
+    return {"message": "Welcome to the Daily News API. Visit /docs for documentation."}

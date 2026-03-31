@@ -1,85 +1,78 @@
-import requests
-import smtplib
-from email.message import EmailMessage
-from datetime import timedelta, datetime
 import os
-import pandas as pd
+import requests
+from datetime import datetime
 from dotenv import load_dotenv
+import db
+from email_utils import send_email
 
-# Load the environment variables
-load_dotenv('./.env')
+load_dotenv("./.env")
+
 API_KEY = os.getenv("ALPHAVANTAGE")
-SECTORS = {
-    'Technology': 'XLK',  
-    'Energy': 'XLE',
-    'Financials': 'XLF', 
-    'Healthcare': 'XLV', 
-    'Consumer Discretionary': 'XLY',  
-    'Utilities': 'XLU', 
-    'Industrials': 'XLI', 
-    'Materials': 'XLB'
-}
-BASE_URL = 'https://www.alphavantage.co/query'
+BASE_URL = "https://www.alphavantage.co/query"
 
-def get_etf_data(symbol):
-    params = {
-        'function': 'TIME_SERIES_DAILY',
-        'symbol': symbol,
-        'apikey': API_KEY,
-    }
+SECTORS = {
+    "Technology": "XLK",
+    "Energy": "XLE",
+    "Financials": "XLF",
+    "Healthcare": "XLV",
+    "Consumer Discretionary": "XLY",
+    "Utilities": "XLU",
+    "Industrials": "XLI",
+    "Materials": "XLB",
+}
+
+def get_etf_data(symbol: str) -> dict | None:
+    params = {"function": "TIME_SERIES_DAILY", "symbol": symbol, "apikey": API_KEY}
     response = requests.get(BASE_URL, params=params)
     data = response.json()
-    if 'Time Series (Daily)' in data:
-        latest_date = next(iter(data['Time Series (Daily)']))
-        prev_open =  data['Time Series (Daily)'][latest_date]['1. open']
-        prev_close = data['Time Series (Daily)'][latest_date]['4. close']
-        prev_delta = prev_close - prev_open
-        prev_delta_perc = (prev_delta/prev_open) * 100
-        prev_volume = data['Time Series (Daily)'][latest_date]['5. volume']
-        return float(prev_close), int(prev_volume), float(prev_delta), float(prev_delta_perc)
-    else:
-        print(f"Error fetching data for ETF {symbol}")
-        return None, None, None, None
+    series = data.get("Time Series (Daily)")
+    if not series:
+        print(f"Error fetching {symbol}: {data.get('Note') or data.get('Information') or 'Unknown error'}")
+        return None
+    latest_date = next(iter(series))
+    day = series[latest_date]
+    open_price = float(day["1. open"])
+    close_price = float(day["4. close"])
+    delta = close_price - open_price
+    delta_pct = (delta / open_price) * 100
+    return {
+        "close": close_price,
+        "volume": int(day["5. volume"]),
+        "delta": delta,
+        "delta_pct": delta_pct,
+    }
 
-def main():
-    end_date = datetime.now()
-    
-    email_body = f"Sector ETF Performance Report\n"
-    email_body += f"Report generated on {end_date.strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    
+def build_report() -> str:
+    date = datetime.now().strftime("%B %d, %Y")
+    lines = [f"Sector ETF Performance Report — {date}\n"]
     for sector, etf in SECTORS.items():
-        print(f"Fetching data for {sector} sector (ETF: {etf})...")
-        close, vol, delta, delta_perc = get_etf_data(etf)
-        if not close == None and not vol == None and not delta_perc == None and not deltaS == None:
-            email_body += f"Data for {sector} ({etf}): Previous day close: {close}. Previous day volume: {vol}. Yesterdays price delta: {delta} ({delta_perc})\n"    
-    subject = f"Sector ETF Performance Report - {end_date.strftime('%Y-%m-%d')}"
-    print("Report content:")
-    print(email_body)
-    # send_email(subject, email_body)
-    # print("Email sent successfully!")
+        print(f"  Fetching {sector} ({etf})...")
+        data = get_etf_data(etf)
+        if data:
+            sign = "+" if data["delta"] >= 0 else ""
+            lines.append(
+                f"{sector} ({etf}): "
+                f"Close ${data['close']:.2f}  "
+                f"Delta {sign}{data['delta']:.2f} ({sign}{data['delta_pct']:.2f}%)  "
+                f"Volume {data['volume']:,}"
+            )
+        else:
+            lines.append(f"{sector} ({etf}): data unavailable")
+    return "\n".join(lines)
 
-def send_email(type, news_content):
-    email_key = os.getenv("EMAILKEY")
-    # Initialize the email message
-    email = EmailMessage()
-    email['from'] = 'Daily News Report'
-    df = pd.read_csv('./Users/users.csv')
-    email_list = df['emails'].values
-    email['to'] = 'email_list'
-    email['subject'] = f'Daily {type} Headlines'
-    body = "Hello!\n\nCatch up on industry ETF performance!\n\n"
-    body += news_content
-    body += "\nEnjoy your personalized finance report!"
-    email.set_content(body)
-    try:
-        with smtplib.SMTP(host='smtp.gmail.com', port=587) as smtp:
-            smtp.ehlo()
-            smtp.starttls()
-            #Enter your own information here
-            smtp.login('avery.clapp@gmail.com', 'email_key')
-            smtp.send_message(email)
-    except Exception as e:
-        print(e)
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    print("Fetching ETF data...")
+    report = build_report()
+    users = [u for u in db.get_all_users() if u["finance_report"]]
+    date_str = datetime.now().strftime("%B %d, %Y")
+    subject = f"Sector ETF Performance Report — {date_str}"
+    sent = 0
+    for user in users:
+        body = f"Hello!\n\nCatch up on sector ETF performance!\n\n{report}\n\nEnjoy your personalized finance report!"
+        try:
+            send_email(to=user["email"], subject=subject, body=body)
+            print(f"Sent finance report to {user['email']}")
+            sent += 1
+        except Exception as e:
+            print(f"Error sending to {user['email']}: {e}")
+    print(f"Done. Sent {sent}/{len(users)} reports.")

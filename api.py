@@ -1,44 +1,47 @@
 from fastapi import APIRouter, HTTPException
-import pandas as pd
+from pydantic import BaseModel, EmailStr
+from typing import Optional
+import db
 
 router = APIRouter()
 
-@router.post("/register")
-async def register(email: str, general_news: bool = True, business_news: bool = True, finance_report: bool = True, sports_news: bool = True):
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
-    df = pd.read_csv("./Users/users.csv")
-    if email in df['email'].values:
-        return {"message": "Email Already Registered"}
-    else:
-        new_row = pd.DataFrame([{
-            'email': email,
-            'general_news': int(general_news),
-            'business_news': int(business_news),
-            'finance_report': int(finance_report),
-            'sports_news': int(sports_news)
-        }])
-        df = pd.concat([df, new_row], ignore_index=True)
-        df.to_csv("./Users/users.csv", index=False)
-        return {"message": f"Successfully Registered Email: {email} with custom preferences"}
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    general_news: bool = True
+    business_news: bool = True
+    finance_report: bool = True
+    sports_news: bool = True
+
+class UpdateRequest(BaseModel):
+    email: EmailStr
+    general_news: Optional[bool] = None
+    business_news: Optional[bool] = None
+    finance_report: Optional[bool] = None
+    sports_news: Optional[bool] = None
+
+class EmailRequest(BaseModel):
+    email: EmailStr
+
+@router.post("/register", status_code=201)
+async def register(req: RegisterRequest):
+    try:
+        db.add_user(req.email, req.model_dump(exclude={"email"}))
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"message": f"Registered {req.email}"}
 
 @router.put("/update_preferences")
-async def update_preferences(email: str, general_news: bool = None, business_news: bool = None, finance_report: bool = None, sports_news: bool = None):
-    df = pd.read_csv("./Users/users.csv")
-    if email not in df['email'].values:
-        raise HTTPException(status_code=404, detail="Email not found")
-    
-    user = df.loc[df['email'] == email].iloc[0]
-    if general_news is not None:
-        user['general_news'] = int(general_news)
-    if business_news is not None:
-        user['business_news'] = int(business_news)
-    if finance_report is not None:
-        user['finance_report'] = int(finance_report)
-    if sports_news is not None:
-        user['sports_news'] = int(sports_news)
-    
-    df.loc[df['email'] == email] = user
-    df.to_csv("./Users/users.csv", index=False)
-    
-    return {"message": f"Successfully updated preferences for {email}"}
+async def update_preferences(req: UpdateRequest):
+    try:
+        db.update_user(req.email, req.model_dump(exclude={"email"}, exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"message": f"Updated preferences for {req.email}"}
+
+@router.delete("/unregister")
+async def unregister(req: EmailRequest):
+    try:
+        db.delete_user(req.email)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"message": f"Unregistered {req.email}"}
