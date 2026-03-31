@@ -1,6 +1,7 @@
 [project]
-name = "dailynewsreport"
-version = "0.1.0"
+name = "DaiylNewsReport"
+version = "1.1.0"
+author = "Avery Clapp"
 description = "Daily personalized news and finance digest emailer"
 requires-python = ">=3.11"
 dependencies = [
