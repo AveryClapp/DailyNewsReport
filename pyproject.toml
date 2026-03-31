@@ -1,0 +1,20 @@
+[project]
+name = "dailynewsreport"
+version = "0.1.0"
+description = "Daily personalized news and finance digest emailer"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.135.2",
+    "newsapi-python>=0.2.7",
+    "python-dotenv>=1.2.2",
+    "requests>=2.33.1",
+    "uvicorn>=0.42.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -2,8 +2,6 @@ import os
 import pytest
 import db
 
-TEST_DB = "test_users.db"
-
 @pytest.fixture(autouse=True)
 def clean_db(monkeypatch, tmp_path):
     test_db = str(tmp_path / "test.db")
@@ -19,6 +17,10 @@ def test_add_and_get_user():
     assert user["email"] == "test@example.com"
     assert user["general_news"] == 1
 
+def test_add_returns_token():
+    token = db.add_user("test@example.com", {})
+    assert isinstance(token, str) and len(token) > 0
+
 def test_add_duplicate_raises():
     db.add_user("test@example.com", {})
     with pytest.raises(ValueError):
@@ -26,6 +28,17 @@ def test_add_duplicate_raises():
 
 def test_get_nonexistent_returns_none():
     assert db.get_user("nobody@example.com") is None
+
+def test_verify_token_valid():
+    token = db.add_user("test@example.com", {})
+    assert db.verify_token("test@example.com", token) is True
+
+def test_verify_token_invalid():
+    db.add_user("test@example.com", {})
+    assert db.verify_token("test@example.com", "wrongtoken") is False
+
+def test_verify_token_nonexistent_user():
+    assert db.verify_token("nobody@example.com", "anytoken") is False
 
 def test_update_user():
     db.add_user("test@example.com", {})
